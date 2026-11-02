@@ -1,38 +1,10 @@
 {
-  "experiment_name": "EstateIQ_House_Price_Experiment",
+  "experiment_name": "EstateIQ_Model_Training",
   "best_model": "HistGradientBoostingRegressor",
   "selection_metric": "lowest_test_rmse",
   "models": {
-    "RandomForestRegressor": {
-      "metrics": {
-        "mae": 0.3286,
-        "rmse": 0.5057,
-        "r2_score": 0.8048,
-        "mae_usd": 32857.09,
-        "rmse_usd": 50569.71
-      },
-      "params": {
-        "n_estimators": 100,
-        "max_depth": 20,
-        "random_state": 42,
-        "n_jobs": -1
-      },
-      "feature_importances": {
-        "MedInc": 0.5243495183978102,
-        "HouseAge": 0.05268265095936381,
-        "AveRooms": 0.017250865576251596,
-        "AveBedrms": 0.024226659706674876,
-        "Population": 0.02752545017015773,
-        "AveOccup": 0.06896991978777926,
-        "Latitude": 0.08523289286910424,
-        "Longitude": 0.08512744952879409,
-        "rooms_per_household": 0.015810938380738944,
-        "bedrooms_per_room": 0.030524556589343298,
-        "population_per_household": 0.0682990980339819
-      },
-      "model_file": "models/random_forest.joblib"
-    },
     "HistGradientBoostingRegressor": {
+      "run_id": "0bba0b4d59b34b28a75e1b56d1195326",
       "metrics": {
         "mae": 0.3008,
         "rmse": 0.4529,
@@ -60,6 +32,36 @@
         "population_per_household": 0.0
       },
       "model_file": "models/gradient_boosting.joblib"
+    },
+    "RandomForestRegressor": {
+      "run_id": "6b97fc4b104444edabeda915012c7c67",
+      "metrics": {
+        "mae": 0.3286,
+        "rmse": 0.5057,
+        "r2_score": 0.8048,
+        "mae_usd": 32857.09,
+        "rmse_usd": 50569.71
+      },
+      "params": {
+        "n_estimators": 100,
+        "max_depth": 20,
+        "random_state": 42,
+        "n_jobs": -1
+      },
+      "feature_importances": {
+        "MedInc": 0.5243495183978102,
+        "HouseAge": 0.05268265095936381,
+        "AveRooms": 0.017250865576251596,
+        "AveBedrms": 0.024226659706674876,
+        "Population": 0.02752545017015773,
+        "AveOccup": 0.06896991978777926,
+        "Latitude": 0.08523289286910424,
+        "Longitude": 0.08512744952879409,
+        "rooms_per_household": 0.015810938380738944,
+        "bedrooms_per_room": 0.030524556589343298,
+        "population_per_household": 0.0682990980339819
+      },
+      "model_file": "models/random_forest.joblib"
     }
   },
   "best_model_metrics": {

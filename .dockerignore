@@ -1,0 +1,39 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Version control & CI
+.git/
+.gitignore
+.github/
+
+# MLflow tracking directory (avoid bloating Docker image with experiment history)
+mlruns/
+
+# Datasets and raw feature stores (model is pre-trained)
+feature_store/
+
+# Python byte-code and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Tests & temporary files
+tests/
+*.log
+*.tmp
+*.temp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+

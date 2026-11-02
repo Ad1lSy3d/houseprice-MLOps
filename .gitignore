@@ -13,8 +13,22 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# MLflow tracking artifacts
+# MLflow tracking artifacts and databases
 mlruns/
+*.db
+*.sqlite
+*.sqlite3
 
 # Large model artifacts
 models/random_forest.joblib
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+
+# Environment variables
+.env
+.env.*

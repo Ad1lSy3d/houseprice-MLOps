@@ -1,3 +1,4 @@
+
 """
 FastAPI Backend for EstateIQ – House Price Intelligence Platform.
 
@@ -19,8 +20,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.schemas import (
     AppStatusResponseSchema,
@@ -50,6 +52,14 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
+# Prometheus monitoring instrumentation
+# Automatically tracks HTTP requests, response status codes and request duration.
+Instrumentator().instrument(app).expose(
+    app,
+    endpoint="/metrics",
+    include_in_schema=True,
+)
+
 # Enable CORS for local development and client integration
 app.add_middleware(
     CORSMiddleware,
@@ -72,7 +82,7 @@ def root(request: Request) -> Any:
     - Serves the frontend dashboard HTML if requested by a web browser.
     """
     accept_header = request.headers.get("accept", "")
-    # If explicitly requesting JSON, or via curl/API clients without text/html preference
+
     if "text/html" in accept_header and "application/json" not in accept_header:
         index_file = FRONTEND_DIR / "index.html"
         if index_file.exists():
@@ -89,6 +99,7 @@ def root(request: Request) -> Any:
             "models": "/models",
             "dashboard": "/dashboard",
             "docs": "/docs",
+            "metrics": "/metrics",
         },
     }
 
@@ -187,4 +198,3 @@ def get_style() -> FileResponse:
 @app.get("/script.js", include_in_schema=False)
 def get_script() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "script.js", media_type="application/javascript")
-

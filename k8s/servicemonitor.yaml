@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: estateiq-servicemonitor
+  namespace: default
+  labels:
+    app: estateiq
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: estateiq
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+

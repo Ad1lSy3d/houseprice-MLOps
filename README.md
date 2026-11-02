@@ -1,300 +1,450 @@
 # EstateIQ – House Price Intelligence Platform
+### Production MLOps System: CI/CD, Containerization, Kubernetes, Terraform, Prometheus/Grafana Monitoring, Streamlit Frontend & MLflow Experiment Tracking
 
-EstateIQ is an end-to-end Machine Learning application and real-estate analytics platform that estimates residential property valuations using California census and geographical data. Built as a modular, maintainable foundation for MLOps, it pairs rigorous model experimentation and tracking (via MLflow and Scikit-learn Pipelines) with a high-performance FastAPI backend and a modern vanilla web dashboard.
+EstateIQ is an enterprise-grade Machine Learning Operations (MLOps) platform that estimates California residential property values. Built on Scikit-learn, FastAPI, and uv, it implements the complete production machine learning lifecycle: automated ETL & feature engineering, experiment tracking and model registry with MLflow, containerization via Docker, infrastructure as code with Terraform, high-availability Kubernetes clustering on Minikube, real-time observability with Prometheus and Grafana, and an interactive cloud-ready Streamlit frontend.
 
 ---
 
-## Architecture Overview
+## 1. End-to-End System Architecture
 
-EstateIQ follows a decoupled, production-ready ML architecture designed to ease future extensions into CI/CD, containerization, and automated registry workflows:
+```text
+                                      ┌──────────────────────────────────────────────┐
+                                      │        Streamlit Community Cloud (UI)        │
+                                      │            (streamlit_app/app.py)            │
+                                      └──────────────────────┬───────────────────────┘
+                                                             │
+                                                             │ HTTPS / REST (Configurable BACKEND_URL)
+                                                             ▼
+                                      ┌──────────────────────────────────────────────┐
+                                      │         Public FastAPI Cloud Hosting         │
+                                      │             (Render Blueprint IaC)           │
+                                      └──────────────────────────────────────────────┘
+                                                             ▲
+                                                             │ (Local Minikube Cluster Architecture)
+                                                             │
+                                      ┌──────────────────────────────────────────────┐
+                                      │       Kubernetes Service (NodePort 30080)    │
+                                      │           (estateiq-service: http:8000)      │
+                                      └──────────────────────┬───────────────────────┘
+                                                             │
+                                   ┌─────────────────────────┴─────────────────────────┐
+                                   ▼                                                   ▼
+                       ┌───────────────────────┐                           ┌───────────────────────┐
+                       │  EstateIQ Replica 1   │                           │  EstateIQ Replica 2   │ (3 Replicas Total)
+                       │  FastAPI + ML Model   │                           │  FastAPI + ML Model   │
+                       └───────────┬───────────┘                           └───────────┬───────────┘
+                                   │                                                   │
+                                   └─────────────────────────┬─────────────────────────┘
+                                                             │ Scrapes /metrics (every 15s)
+                                                             ▼
+                                              ┌─────────────────────────────┐
+                                              │  Prometheus ServiceMonitor  │
+                                              │    (release: monitoring)    │
+                                              └──────────────┬──────────────┘
+                                                             │
+                                                             ▼
+                                              ┌─────────────────────────────┐
+                                              │    Prometheus TSDB Engine   │
+                                              │       (NodePort 30090)      │
+                                              └──────────────┬──────────────┘
+                                                             │ Queries Metrics
+                                                             ▼
+                                              ┌─────────────────────────────┐
+                                              │      Grafana Dashboard      │
+                                              │       (NodePort 30300)      │
+                                              │  (Auto-provisioned Config)  │
+                                              └─────────────────────────────┘
 
+══════════════════════════════════════════════════════════════════════════════════════════════════════
+                          OFFLINE DATA & MLFLOW TRACKING PIPELINE
+══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  [California Census Data] ──> [src/etl.py] ──> [feature_store/housing_features.csv]
+                                                     │
+                                                     ▼
+                                            [src/train.py] ──> [models/best_model.joblib]
+                                                     │     ──> [reports/evaluation_results.json]
+                                                     │     ──> [reports/model_comparison.png]
+                                                     ▼
+                                      [MLflow Tracking: EstateIQ_Model_Training]
+                                      (SQLite Backend: sqlite:///mlruns/mlflow.db)
+                                      ├── Run 1: HistGradientBoostingRegressor (Best Model)
+                                      └── Run 2: RandomForestRegressor
+                                      └── Artifacts: models, plots, evaluation JSONs
 ```
-                                  ┌────────────────────────┐
-                                  │  California Housing   │
-                                  │     (Scikit-Learn)     │
-                                  └───────────┬────────────┘
-                                              │
-                                              ▼
-                                   [src/etl.py Pipeline]
-                                  Clean, Validate & Engineer
-                                              │
-                                              ▼
-                                 ┌───────────────────────────┐
-                                 │ feature_store/            │
-                                 │   housing_features.csv    │
-                                 └─────────────┬─────────────┘
-                                               │
-                       ┌───────────────────────┴───────────────────────┐
-                       ▼                                               ▼
-             [RandomForestRegressor]                      [HistGradientBoosting]
-                       │                                               │
-                       └───────────────────────┬───────────────────────┘
-                                               │ Evaluated (MAE, RMSE, R²)
-                                               ▼
-                                   [src/train.py Pipeline]
-                                               ├─────────────────────────────┐
-                                               ▼                             ▼
-                                   ┌───────────────────────┐     ┌───────────────────────┐
-                                   │       MLflow UI       │     │ models/               │
-                                   │  (mlruns/ experiment) │     │   best_model.joblib   │
-                                   └───────────────────────┘     └───────────┬───────────┘
-                                                                             │
-                                                                             ▼
-                                                                  [src/predict.py]
-                                                              Feature Transform & Scaling
-                                                                             │
-                                                                             ▼
-                                                                   [backend/main.py]
-                                                                    FastAPI REST API
-                                                                             │
-                                                        ┌────────────────────┴────────────────────┐
-                                                        ▼                                         ▼
-                                                [frontend/ UI]                             [/docs API]
-                                            Interactive Dashboard                          Swagger Docs
-```
 
 ---
 
-## Dataset & Domain Features
-
-### California Housing Dataset
-Derived from the 1990 U.S. Census, the dataset encompasses 20,640 California block groups, each averaging 1,425 individuals.
-
-> [!NOTE]
-> The target variable (`MedHouseVal`) is natively expressed in units of **$100,000**. EstateIQ scales all model predictions and residuals by $100,000 to output readable, currency-formatted USD values. In the historical 1990 census, median values above $500,000 were top-coded.
-
-### Base Features
-1. `MedInc`: Median income within the block group (in tens of thousands USD, e.g. 8.32 = $83,200).
-2. `HouseAge`: Median age of houses in the block group (years).
-3. `AveRooms`: Average number of rooms per household.
-4. `AveBedrms`: Average number of bedrooms per household.
-5. `Population`: Total population residing in the block group.
-6. `AveOccup`: Average number of household members.
-7. `Latitude`: Block group latitude (California: 32.0°N to 43.0°N).
-8. `Longitude`: Block group longitude (California: -125.0°W to -114.0°W).
-
-### Engineered Domain Features
-To capture spatial and property-density dynamics without data leakage:
-- `rooms_per_household`: Average rooms per household (`AveRooms`).
-- `bedrooms_per_room`: Ratio of bedrooms to total rooms (`AveBedrms / AveRooms`). Indicates property density and home style.
-- `population_per_household`: Occupancy density per household (`AveOccup`).
-
----
-
-## Models & Evaluation
-
-EstateIQ trains and benchmarks two non-linear tree-based ensembles on an 80/20 train-test split (`random_state=42`) wrapped in Scikit-learn `StandardScaler` preprocessing pipelines:
-
-1. **Random Forest Regressor**: 100 estimators, max depth 20.
-2. **HistGradientBoosting Regressor**: 150 iterations, learning rate 0.1, max leaf nodes 31.
-
-### Test Set Benchmark Results
-
-| Model Architecture | MAE (Score) | MAE (USD) | RMSE (Score) | RMSE (USD) | R² Score | Selection Status |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **HistGradientBoosting** | **0.3008** | **$30,079.38** | **0.4529** | **$45,290.80** | **0.8435** | **Selected Best** |
-| Random Forest | 0.3286 | $32,857.09 | 0.5057 | $50,569.71 | 0.8048 | Evaluated Candidate |
-
-*Model selection is automated based on the lowest test RMSE.*
-
-### Defensible Uncertainty Estimation
-Rather than presenting arbitrary heuristic confidence intervals, EstateIQ provides an empirical prediction range based on the out-of-sample **Root Mean Squared Error (RMSE)**:
-$$\text{Uncertainty Bounds} = [\max(0, \hat{y} - \text{RMSE}), \hat{y} + \text{RMSE}]$$
-For our best model, this corresponds to approximately **±$45,291**, representing $\pm 1$ standard deviation of model residuals on previously unseen data.
-
----
-
-## Project Structure
+## 2. Repository Structure
 
 ```text
 houseprice-MLOps/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                     # GitHub Actions CI pipeline (lint & pytest)
 ├── backend/
 │   ├── __init__.py
-│   ├── main.py              # FastAPI application, static file serving, REST endpoints
-│   └── schemas.py           # Pydantic v2 validation models
-├── frontend/
-│   ├── index.html           # Real-estate analytics dashboard structure
-│   ├── style.css            # Responsive modern theme with charts and animations
-│   └── script.js            # Vanilla JS fetching /models, presets, and /predict
+│   ├── main.py                        # FastAPI application with Prometheus instrumentation
+│   └── schemas.py                     # Pydantic v2 validation models
+├── feature_store/
+│   └── housing_features.csv           # Curated feature dataset with engineered ratios
+├── frontend/                          # Local HTML/CSS/JS dashboard
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+├── k8s/                               # Raw Kubernetes resource manifests
+│   ├── deployment.yaml                # 3-replica EstateIQ deployment definition
+│   ├── service.yaml                   # NodePort 30080 service definition with named port http
+│   └── servicemonitor.yaml            # Prometheus Operator ServiceMonitor resource
+├── models/
+│   ├── best_model.joblib              # Persisted winning model (HistGradientBoosting, 556 KB)
+│   └── gradient_boosting.joblib       # Standalone HistGradientBoosting model (556 KB)
+├── monitoring/
+│   └── grafana/
+│       ├── estateiq-dashboard.json    # Complete 12-panel Grafana dashboard JSON
+│       └── dashboard-configmap.yaml   # ConfigMap with grafana_dashboard=1 label
+├── reports/
+│   ├── evaluation_results.json        # Test metrics, params, and feature importances
+│   ├── model_comparison.json         # Comparative summary between candidate models
+│   ├── model_comparison.png          # Performance comparison bar chart
+│   ├── histgradientboostingregressor_feature_importance.png
+│   └── randomforestregressor_feature_importance.png
 ├── src/
 │   ├── __init__.py
-│   ├── etl.py               # Data extraction, cleaning, and feature engineering
-│   ├── train.py             # Model training, evaluation, and MLflow logging
-│   └── predict.py           # Prediction inference engine and USD converter
-├── feature_store/
-│   └── housing_features.csv # Processed dataset with engineered features
-├── models/
-│   ├── best_model.joblib    # Selected champion model pipeline
-│   ├── gradient_boosting.joblib
-│   └── random_forest.joblib
-├── mlruns/                  # MLflow experiment tracking records and artifacts
-├── reports/
-│   └── evaluation_results.json # Full benchmark metrics, params, and feature importances
+│   ├── etl.py                         # ETL and feature engineering pipeline
+│   ├── train.py                       # MLflow tracking pipeline & model training
+│   └── predict.py                     # Prediction logic, USD scaling, empirical uncertainty
+├── streamlit_app/
+│   ├── app.py                         # Streamlit cloud frontend
+│   └── requirements.txt               # Standalone dependencies for Streamlit Cloud
+├── terraform/
+│   ├── main.tf                        # Kubernetes Deployment & Service resources in HCL
+│   ├── variables.tf                   # Deployment configuration variables
+│   ├── outputs.tf                     # NodePort service URL output
+│   └── .terraform.lock.hcl            # Provider lockfile
 ├── tests/
-│   ├── __init__.py
-│   ├── test_api.py          # FastAPI testclient integration tests
-│   ├── test_etl.py          # ETL and feature engineering tests
-│   ├── test_model.py        # Model training and artifact tests
-│   └── test_predict.py      # Prediction and error validation tests
-├── pyproject.toml           # uv project configuration and dependencies
-├── uv.lock                  # Pinned dependency lockfile
-├── .gitignore               # Ignored environments and temporary files
-└── README.md                # Project documentation
+│   ├── test_api.py                    # FastAPI route testing
+│   ├── test_etl.py                    # Data extraction & transformation tests
+│   ├── test_model.py                  # MLflow experiment, runs, parameters & artifact tests
+│   ├── test_monitoring.py             # Prometheus metrics & ServiceMonitor tests
+│   ├── test_predict.py                # Validation rules & prediction boundary tests
+│   └── test_streamlit.py              # Streamlit configuration & preset tests
+├── .dockerignore                      # Docker context exclusions
+├── .gitignore                         # Git exclusions (.venv, mlruns, *.db, *.tfstate, random_forest.joblib)
+├── docker-compose.yml                 # Multi-container orchestration definition
+├── Dockerfile                         # Production-grade multi-stage container build
+├── pyproject.toml                     # Python project dependencies managed via uv
+├── render.yaml                        # Infrastructure-as-code blueprint for Render.com hosting
+├── uv.lock                            # Deterministic uv dependency lockfile
+└── README.md                          # Platform documentation
 ```
 
 ---
 
-## Environment Setup (Using `uv`)
+## 3. Environment Setup & Dependency Management
 
-EstateIQ relies exclusively on [uv](https://docs.astral.sh/uv/) for deterministic Python environment and dependency management.
+EstateIQ uses `uv` for fast, reproducible Python packaging and virtual environment management.
 
-### 1. Prerequisites
+### Prerequisites
 - Python 3.12
-- `uv` installed on your machine (`brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`)
+- Docker Desktop or Docker Engine
+- Minikube & kubectl
+- Terraform v1.5+
+- Helm v3+
 
-### 2. Virtual Environment Creation & Synchronization
+### Virtual Environment Initialization
 ```bash
-# Create Python 3.12 virtual environment
+# Clone the repository
+git clone https://github.com/Ad1lSy3d/houseprice-MLOps.git
+cd houseprice-MLOps
+
+# Initialize virtual environment with Python 3.12
 uv venv --python 3.12
 
-# Sync all pinned dependencies from uv.lock
+# Synchronize all project dependencies reproducibly from uv.lock
 uv sync
 ```
 
 ---
 
-## Execution Guide
+## 4. MLflow Experiment Tracking & Model Registry
 
-All execution commands use `uv run` to guarantee that dependencies run inside the isolated virtual environment.
+EstateIQ includes enterprise experiment tracking using **MLflow** with a persistent local **SQLite** database backend.
 
-### 1. Run the ETL Pipeline
-Extracts raw data, computes domain features, and saves `feature_store/housing_features.csv`:
-```bash
-uv run python src/etl.py
-```
+### Experiment Configuration
+- **Experiment Name**: `EstateIQ_Model_Training` (configurable via `MLFLOW_EXPERIMENT_NAME`)
+- **Backend Store URI**: `sqlite:///mlruns/mlflow.db` (configurable via `MLFLOW_TRACKING_URI`)
+- **Artifact Location**: `mlruns/artifacts/`
 
-### 2. Train Models & Track with MLflow
-Trains both candidate models, evaluates them on the test set, logs parameters and artifacts to MLflow, and saves the best model:
+### Executing Model Training
+To run the automated ETL, model training, parameter logging, metric recording, and artifact generation:
 ```bash
 uv run python src/train.py
 ```
 
-### 3. Launch the MLflow UI
-Inspect experiment runs, compare hyperparameters, and visualize model metrics:
-```bash
-uv run mlflow ui --port 5000
-```
-Open [http://localhost:5000](http://localhost:5000) in your browser and select the `EstateIQ_House_Price_Experiment`.
+### Logged Experiment Details
+Each training run evaluates both candidate models with a reproducible 80/20 train/test split (`random_state=42`) and logs:
+- **Separate Runs**: Dedicated runs for `HistGradientBoostingRegressor` and `RandomForestRegressor`.
+- **Logged Parameters**:
+  - Model Name & Model Type
+  - Framework (`scikit-learn`) & Preprocessing Scaler (`StandardScaler`)
+  - Random Seed (`random_state=42`)
+  - Hyperparameters (`learning_rate`, `max_iter`, `max_leaf_nodes`, `n_estimators`, `max_depth`, `n_jobs`)
+  - Dataset Information (`California Housing`, 11 features, 16,512 train samples, 4,128 test samples)
+- **Evaluation Metrics**:
+  - Out-of-sample Test MAE & Test RMSE (target scale $100,000)
+  - Test MAE in USD & Test RMSE in USD
+  - Test $R^2$ Score
+- **Artifacts Recorded**:
+  - `evaluation/evaluation_results.json`: Full evaluation results and feature importances
+  - `evaluation/model_comparison.json`: Comparative metrics summary
+  - `evaluation/model_comparison.png`: Comparison bar chart across MAE, RMSE, and $R^2$
+  - `plots/<model>_feature_importance.png`: Feature importance horizontal bar chart
+  - `model/<model>.joblib` & `model/best_model.joblib`: Serialized Scikit-learn Pipeline
+  - `model_pipeline`: Native MLflow Scikit-learn model flavor
+- **Best Model Selection**:
+  - Automatically identifies the winning model based on lowest test RMSE.
+  - Adds tags `is_best_model: "true"` and `best_model_selection: "HistGradientBoostingRegressor"`.
+  - Persists the winner to `models/best_model.joblib` for zero-downtime serving.
 
-### 4. Run the Prediction Module in CLI (Optional)
-Test the standalone inference pipeline with sample data:
-```bash
-uv run python src/predict.py
-```
+### Evaluated Model Performance Summary
 
-### 5. Launch the FastAPI Application & Dashboard
-Start the Uvicorn web server:
+| Candidate Model | Test MAE | Test RMSE | $R^2$ Score | Test MAE (USD) | Test RMSE (USD) | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **HistGradientBoostingRegressor** | **0.3008** | **0.4529** | **0.8435** | **$30,079.38** | **$45,290.80** | **Selected Best Model** |
+| RandomForestRegressor | 0.3286 | 0.5057 | 0.8048 | $32,857.09 | $50,569.71 | Candidate Model |
+
+### Launching the MLflow UI
+Launch the interactive MLflow dashboard:
 ```bash
-uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+# Standard command (port 5000):
+uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db --host 127.0.0.1 --port 5000
+
+# On macOS where ControlCenter/AirPlay listens on port 5000, use port 5001:
+uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db --host 127.0.0.1 --port 5001
+```
+Open your browser at:
+- **http://localhost:5000** (or **http://localhost:5001**)
+
+Inside the UI, navigate to the **`EstateIQ_Model_Training`** experiment to view side-by-side run comparisons, parameter diffs, metric charts, and visual artifact plots.
+
+---
+
+## 5. Docker Containerization
+
+The backend is packaged into a production-grade container image using Python 3.12-slim and `uv`.
+
+### Build and Run Commands
+```bash
+# Build the Docker image
+docker build -t estateiq:latest .
+
+# Run the container locally mapping port 8000
+docker run -d --name estateiq-app -p 8000:8000 estateiq:latest
+
+# Verify container health
+curl -s http://localhost:8000/health
 ```
 
 ---
 
-## Accessing the Application
+## 6. Kubernetes Clustering & Terraform IaC
 
-Once the server is running:
+The application is deployed to Kubernetes as a 3-replica high-availability deployment, managed declaratively via Terraform.
 
-- **Web Dashboard**: Navigate to [http://127.0.0.1:8000/](http://127.0.0.1:8000/) or [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard).
-- **Interactive API Documentation (Swagger)**: Navigate to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-- **Alternative Redoc Documentation**: Navigate to [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc).
-- **Health Check Endpoint**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health).
-- **Models & Evaluation Metrics**: [http://127.0.0.1:8000/models](http://127.0.0.1:8000/models).
+### Terraform Commands
+```bash
+cd terraform
+
+# Initialize Terraform Kubernetes provider
+terraform init
+
+# Inspect execution plan
+terraform plan
+
+# Apply infrastructure changes (manages 3 replicas and NodePort 30080)
+terraform apply -auto-approve
+```
+
+### Direct Kubernetes Commands (Minikube)
+```bash
+# Load Docker image into Minikube
+minikube image load estateiq:latest --overwrite=true
+
+# Restart deployment to pull updated image
+kubectl rollout restart deployment/estateiq-deployment
+kubectl rollout status deployment/estateiq-deployment
+
+# Verify all replicas are running
+kubectl get pods -l app=estateiq
+```
 
 ---
 
-## Running the Automated Test Suite
+## 7. Prometheus & Grafana Monitoring
 
-Run the full pytest suite:
+EstateIQ is instrumented with `prometheus-fastapi-instrumentator`, exposing standard HTTP metrics on `/metrics`.
+
+### ServiceMonitor Integration
+Prometheus discovers and scrapes EstateIQ via the Kubernetes `ServiceMonitor` (`k8s/servicemonitor.yaml`):
+- Namespace: `default`
+- Service Selector: `app: estateiq`
+- Port: `http` (targetPort 8000)
+- Metric Path: `/metrics`
+- Scrape Interval: `15s`
+- Label: `release: monitoring`
+
+### Grafana Dashboard (`monitoring/grafana/estateiq-dashboard.json`)
+Auto-provisioned via the Grafana sidecar using `monitoring/grafana/dashboard-configmap.yaml` with label `grafana_dashboard: "1"`.
+
+#### Monitored Panels & PromQL Queries:
+1. **Total HTTP Requests**:
+   ```promql
+   sum(http_requests_total{job="estateiq-service"})
+   ```
+2. **Kubernetes Pod Availability**:
+   ```promql
+   sum(kube_deployment_status_replicas_available{deployment="estateiq-deployment", namespace="default"})
+   ```
+3. **Failed Requests (4xx / 5xx)**:
+   ```promql
+   sum(http_requests_total{job="estateiq-service", status=~"[45].*"}) or vector(0)
+   ```
+4. **P95 Request Latency**:
+   ```promql
+   histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="estateiq-service"}[5m])) by (le))
+   ```
+5. **Request Rate Over Time (req/s)**:
+   ```promql
+   sum by (handler, method) (rate(http_requests_total{job="estateiq-service"}[1m]))
+   ```
+6. **Average Request Duration by Endpoint**:
+   ```promql
+   sum(rate(http_request_duration_seconds_sum{job="estateiq-service"}[5m])) by (handler) / sum(rate(http_request_duration_seconds_count{job="estateiq-service"}[5m])) by (handler)
+   ```
+7. **HTTP Status Code Distribution**:
+   ```promql
+   sum by (status) (http_requests_total{job="estateiq-service"})
+   ```
+8. **CPU Usage per Pod**:
+   ```promql
+   sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"estateiq-deployment-.*", container="estateiq", namespace="default"}[1m]))
+   ```
+9. **Memory Working Set per Pod**:
+   ```promql
+   sum by (pod) (container_memory_working_set_bytes{pod=~"estateiq-deployment-.*", container="estateiq", namespace="default"})
+   ```
+
+---
+
+## 8. Streamlit Frontend & Public Deployment
+
+EstateIQ features an intuitive Streamlit frontend located in `streamlit_app/`.
+
+### Running Streamlit Locally
+```bash
+# Run Streamlit frontend
+streamlit run streamlit_app/app.py
+```
+
+### Public Deployment on Streamlit Community Cloud
+1. Push repository changes to GitHub (`main` branch).
+2. Go to [share.streamlit.io](https://share.streamlit.io/).
+3. Select your repository: `adilsyed/houseprice-MLOps` (or your GitHub fork).
+4. Branch: `main`.
+5. Main file path: `streamlit_app/app.py`.
+6. In **Advanced Settings -> Secrets**, define the public backend URL:
+   ```toml
+   BACKEND_URL = "https://estateiq-api.onrender.com"
+   ```
+
+### Public Backend Deployment Configuration (Render)
+Streamlit Cloud cannot access local Minikube IP addresses. To host the FastAPI backend publicly:
+- Blueprint file: [`render.yaml`](render.yaml)
+- Steps:
+  1. Go to [render.com](https://render.com/) and link your GitHub repository.
+  2. Create a new **Web Service** from `render.yaml` with environment **Docker**.
+  3. Render builds using `Dockerfile` and starts Uvicorn listening on port 8000.
+  4. Once deployed, copy your Render service URL (e.g. `https://estateiq-api.onrender.com`) and paste it into Streamlit's secrets or sidebar setting.
+
+### Public Production Cloud Extensions
+For enterprise cloud scaling beyond local Minikube:
+- **Managed Kubernetes**: Deploy the `k8s/` manifests or `terraform/` templates to Google Kubernetes Engine (GKE), Amazon EKS, or Azure AKS by pointing the Terraform `kubernetes` provider to the managed cluster context.
+- **Remote MLflow Server**: Set `MLFLOW_TRACKING_URI` to a remote managed tracking server (e.g. Databricks MLflow or MLflow on AWS EC2/ECS backed by S3 and RDS PostgreSQL).
+
+---
+
+## 9. Verification & Test Execution Guide
+
+Run the comprehensive pytest suite covering API endpoints, ETL pipeline, model training, MLflow tracking, prediction bounds, Prometheus metrics, and Streamlit presets:
 ```bash
 uv run pytest -v
 ```
 
-The test suite covers:
-- Raw California data extraction and column validation.
-- Feature engineering calculations (including zero-division safety).
-- Missing and negative value imputation.
-- Feature store generation in temporary directories.
-- Fast model pipeline training, metric computation, and artifact persistence.
-- Prediction USD scaling, uncertainty calculation, and bounds enforcement.
-- Validation of negative or invalid coordinates.
-- FastAPI health, model metrics, prediction schemas, and 422 error handlers.
+### Test Suite Execution Output:
+```text
+tests/test_api.py::test_api_status_endpoint PASSED                       [  3%]
+tests/test_api.py::test_health_endpoint PASSED                           [  7%]
+tests/test_api.py::test_models_endpoint PASSED                           [ 11%]
+tests/test_api.py::test_predict_endpoint_valid PASSED                    [ 14%]
+tests/test_api.py::test_predict_endpoint_invalid_values PASSED           [ 18%]
+tests/test_api.py::test_predict_endpoint_missing_fields PASSED           [ 22%]
+tests/test_api.py::test_dashboard_endpoint PASSED                        [ 25%]
+tests/test_etl.py::test_extract_data PASSED                              [ 29%]
+tests/test_etl.py::test_engineer_features PASSED                         [ 33%]
+tests/test_etl.py::test_clean_data PASSED                                [ 37%]
+tests/test_etl.py::test_run_etl_creates_feature_store PASSED             [ 40%]
+tests/test_model.py::test_model_training_and_artifacts PASSED            [ 44%]
+tests/test_model.py::test_mlflow_experiment_and_runs PASSED              [ 48%]
+tests/test_model.py::test_repeated_training_creates_new_runs PASSED      [ 51%]
+tests/test_model.py::test_existing_model_prediction_still_works PASSED   [ 55%]
+tests/test_monitoring.py::test_metrics_endpoint_exposed PASSED           [ 59%]
+tests/test_monitoring.py::test_grafana_dashboard_json_structure PASSED   [ 62%]
+tests/test_monitoring.py::test_servicemonitor_manifest PASSED            [ 66%]
+tests/test_predict.py::test_predict_price_valid_input PASSED             [ 70%]
+tests/test_predict.py::test_predict_price_missing_feature PASSED         [ 74%]
+tests/test_predict.py::test_predict_price_negative_values PASSED         [ 77%]
+tests/test_predict.py::test_predict_price_out_of_bounds_geography PASSED [ 81%]
+tests/test_predict.py::test_load_model_missing_file PASSED               [ 85%]
+tests/test_streamlit.py::test_streamlit_files_exist PASSED               [ 88%]
+tests/test_streamlit.py::test_streamlit_presets_valid_against_schema PASSED [ 92%]
+tests/test_streamlit.py::test_resolve_backend_url_environment PASSED     [ 96%]
+tests/test_streamlit.py::test_render_blueprint_valid PASSED              [100%]
 
----
-
-## API Reference
-
-### `GET /health`
-Returns system operational status and model readiness.
-
-**Sample Response:**
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "best_model_name": "HistGradientBoostingRegressor",
-  "version": "0.1.0"
-}
-```
-
-### `GET /models`
-Returns real test benchmark metrics (MAE, RMSE, R²), hyperparameters, and feature importances for all candidate models.
-
-### `POST /predict`
-Estimates valuation for a property given 8 block group features.
-
-**Sample Request:**
-```json
-{
-  "MedInc": 8.3252,
-  "HouseAge": 41.0,
-  "AveRooms": 6.9841,
-  "AveBedrms": 1.0238,
-  "Population": 322.0,
-  "AveOccup": 2.5555,
-  "Latitude": 37.88,
-  "Longitude": -122.23
-}
-```
-
-**Sample Response:**
-```json
-{
-  "prediction_raw": 4.2448,
-  "prediction_usd": 424482.35,
-  "prediction_usd_formatted": "$424,482.35",
-  "model_name": "HistGradientBoostingRegressor",
-  "uncertainty": {
-    "lower_bound_usd": 379192.35,
-    "upper_bound_usd": 469772.35,
-    "lower_bound_formatted": "$379,192.35",
-    "upper_bound_formatted": "$469,772.35",
-    "uncertainty_usd": 45290.0,
-    "method": "empirical_test_rmse",
-    "description": "Range reflects ±1 test RMSE ($45,290), representing the standard deviation of out-of-sample model prediction residuals."
-  },
-  "engineered_features": {
-    "rooms_per_household": 6.984,
-    "bedrooms_per_room": 0.147,
-    "population_per_household": 2.555
-  },
-  "input_features": { ... },
-  "disclaimer": "Educational prediction based on 1990 California Census housing dataset. Not an appraisal or real-time property valuation service."
-}
+======================== 27 passed, 3 warnings in 8.96s ========================
 ```
 
 ---
 
-## Educational Disclaimer
+## 10. Screenshots & Evidence Checklist
 
-EstateIQ is built for educational, academic, and demonstration purposes using the 1990 California Census dataset. It should not be used as a licensed appraisal or live real-estate appraisal service.
+Capture these screenshots for your project submission or portfolio:
 
+1. **MLflow Experiment & Runs UI**: MLflow Web UI showing the `EstateIQ_Model_Training` experiment, runs for `HistGradientBoostingRegressor` and `RandomForestRegressor`, metrics (MAE, RMSE, $R^2$), and logged artifacts (plots, model, evaluation JSON).
+2. **MLflow Feature Importance Artifact**: MLflow run artifact viewer showing the logged `plots/histgradientboostingregressor_feature_importance.png` plot.
+3. **Docker Container Run**: Terminal showing `docker ps` with container `estateiq:latest` listening on `0.0.0.0:8000`.
+4. **Kubernetes Deployment**: Terminal showing `kubectl get pods -o wide` and `kubectl get svc estateiq-service` with 3 healthy replicas.
+5. **Terraform Apply Execution**: Terminal output showing `Apply complete! Resources: 0 added, 2 changed, 0 destroyed.`
+6. **Prometheus Targets UI**: Prometheus Web UI (`http://<minikube-ip>:30090/targets`) displaying `serviceMonitor/default/estateiq-servicemonitor/0` with state **UP** (3/3 endpoints).
+7. **Grafana Monitoring Dashboard**: Grafana UI (`http://<minikube-ip>:30300/d/estateiq-monitoring`) displaying all 12 live panels with request counts, latency quantiles, and status distribution.
+8. **Streamlit Prediction Interface**: Browser showing `streamlit_app/app.py` with Bay Area preset valuation result, empirical uncertainty bounds, and engineered features.
+9. **FastAPI Swagger Documentation**: Browser showing `http://localhost:8000/docs` with all endpoints (`/predict`, `/models`, `/health`, `/metrics`).
+10. **GitHub Actions CI Run**: Green checkmark showing all 27 pytest tests passing on GitHub Actions.
+
+---
+
+## 11. Viva & Theoretical Concepts Reference
+
+- **Why SQLite-Backed MLflow Tracking over Raw Filesystem?**
+  MLflow v3 natively supports database backends via SQLAlchemy. An SQLite backend (`sqlite:///mlruns/mlflow.db`) provides atomic transactions, query indexing, robust concurrency for parallel training workers, and persistent experiment metadata across sessions.
+- **Why Scikit-learn Pipeline over loose transformers?**
+  Pipelines prevent data leakage by strictly fitting scalers on the training split only and applying pre-fitted transformations during cross-validation and production inference.
+- **Why HistGradientBoostingRegressor?**
+  Bins continuous numerical features into 256 discrete bins, achieving orders of magnitude faster training and inference with native handling of non-linear interactions compared to standard gradient boosting.
+- **Why ServiceMonitor over static Prometheus scrape configs?**
+  Prometheus Operator utilizes Kubernetes Custom Resource Definitions (CRDs). A `ServiceMonitor` decouples metric scraping targets from Prometheus server configuration, automatically tracking dynamically scaling pod IPs and endpoints.
+- **Why Named Port `http` in Service?**
+  ServiceMonitors reference endpoints by the symbolic port name defined in `spec.ports[].name` rather than hardcoded container port numbers, adhering to declarative Kubernetes standards.
+- **Why Empirical Out-of-Sample RMSE for Uncertainty?**
+  Avoids fabricating arbitrary confidence percentages; directly communicates the standard deviation of regression residuals observed on held-out test data ($\pm 1 \text{ RMSE} \approx \$45,291$).

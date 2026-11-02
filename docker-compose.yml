@@ -1,0 +1,19 @@
+services:
+  estateiq:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: estateiq:latest
+    container_name: estateiq-app
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+

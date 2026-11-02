@@ -1,0 +1,39 @@
+{
+  "experiment_name": "EstateIQ_Model_Training",
+  "best_model": "HistGradientBoostingRegressor",
+  "selection_metric": "lowest_test_rmse",
+  "models": {
+    "HistGradientBoostingRegressor": {
+      "run_id": "0bba0b4d59b34b28a75e1b56d1195326",
+      "metrics": {
+        "mae": 0.3008,
+        "rmse": 0.4529,
+        "r2_score": 0.8435,
+        "mae_usd": 30079.38,
+        "rmse_usd": 45290.8
+      },
+      "params": {
+        "max_iter": 150,
+        "learning_rate": 0.1,
+        "max_leaf_nodes": 31,
+        "random_state": 42
+      }
+    },
+    "RandomForestRegressor": {
+      "run_id": "6b97fc4b104444edabeda915012c7c67",
+      "metrics": {
+        "mae": 0.3286,
+        "rmse": 0.5057,
+        "r2_score": 0.8048,
+        "mae_usd": 32857.09,
+        "rmse_usd": 50569.71
+      },
+      "params": {
+        "n_estimators": 100,
+        "max_depth": 20,
+        "random_state": 42,
+        "n_jobs": -1
+      }
+    }
+  }
+}
