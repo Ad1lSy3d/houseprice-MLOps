@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EstateIQ – House Price Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navigation / Header -->
+    <header class="header">
+      <div class="header-inner container">
+        <div class="brand">
+          <div class="brand-badge">ML</div>
+          <div>
+            <h1 class="brand-title">EstateIQ</h1>
+            <p class="brand-subtitle">Smart Property Valuation Powered by Machine Learning</p>
+          </div>
+        </div>
+        <div class="header-status">
+          <span class="status-indicator" id="system-status-indicator"></span>
+          <span class="status-text" id="system-status-text">Connecting...</span>
+          <span class="model-badge" id="active-model-badge">Loading model...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="main-content container">
+      <!-- Hero / Quick Presets Bar -->
+      <section class="presets-section">
+        <span class="presets-label">Quick California Presets:</span>
+        <div class="presets-buttons">
+          <button type="button" class="preset-btn" data-preset="sf-bay">San Francisco Bay Area</button>
+          <button type="button" class="preset-btn" data-preset="la-coastal">Los Angeles Coastal</button>
+          <button type="button" class="preset-btn" data-preset="central-valley">Central Valley</button>
+          <button type="button" class="preset-btn" data-preset="san-diego">San Diego Suburban</button>
+        </div>
+      </section>
+
+      <div class="dashboard-grid">
+        <!-- Left Column: Input Form -->
+        <section class="card form-card">
+          <div class="card-header">
+            <h2>Property Characteristics</h2>
+            <p>Enter the 8 census block-group attributes to calculate valuation.</p>
+          </div>
+
+          <form id="property-form" class="property-form" novalidate>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="MedInc">
+                  Median Income (MedInc)
+                  <span class="tooltip" title="Median income of block group in tens of thousands USD (e.g. 8.32 = $83,200/yr)">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <span class="input-prefix">$10k</span>
+                  <input type="number" id="MedInc" name="MedInc" step="0.0001" min="0.1" max="25" required placeholder="8.3252">
+                </div>
+                <span class="error-msg" id="err-MedInc"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="HouseAge">
+                  Median House Age
+                  <span class="tooltip" title="Median age of houses in block group (1 to 100 years)">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="HouseAge" name="HouseAge" step="1" min="1" max="100" required placeholder="41">
+                  <span class="input-suffix">yrs</span>
+                </div>
+                <span class="error-msg" id="err-HouseAge"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="AveRooms">
+                  Average Rooms
+                  <span class="tooltip" title="Average total number of rooms per household">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="AveRooms" name="AveRooms" step="0.001" min="0.5" max="50" required placeholder="6.984">
+                  <span class="input-suffix">rms</span>
+                </div>
+                <span class="error-msg" id="err-AveRooms"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="AveBedrms">
+                  Average Bedrooms
+                  <span class="tooltip" title="Average total number of bedrooms per household">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="AveBedrms" name="AveBedrms" step="0.001" min="0.2" max="20" required placeholder="1.024">
+                  <span class="input-suffix">bdrms</span>
+                </div>
+                <span class="error-msg" id="err-AveBedrms"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="Population">
+                  Block Population
+                  <span class="tooltip" title="Total population count residing within the block group">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="Population" name="Population" step="1" min="1" max="35000" required placeholder="322">
+                  <span class="input-suffix">ppl</span>
+                </div>
+                <span class="error-msg" id="err-Population"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="AveOccup">
+                  Average Occupancy
+                  <span class="tooltip" title="Average number of household members per household">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="AveOccup" name="AveOccup" step="0.01" min="0.5" max="30" required placeholder="2.56">
+                  <span class="input-suffix">memb</span>
+                </div>
+                <span class="error-msg" id="err-AveOccup"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="Latitude">
+                  Latitude
+                  <span class="tooltip" title="Geographical latitude (California range: 32.5° to 42.0° N)">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="Latitude" name="Latitude" step="0.0001" min="32.0" max="43.0" required placeholder="37.8800">
+                  <span class="input-suffix">°N</span>
+                </div>
+                <span class="error-msg" id="err-Latitude"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="Longitude">
+                  Longitude
+                  <span class="tooltip" title="Geographical longitude (California range: -124.5° to -114.0° W)">ⓘ</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="Longitude" name="Longitude" step="0.0001" min="-125.0" max="-114.0" required placeholder="-122.2300">
+                  <span class="input-suffix">°W</span>
+                </div>
+                <span class="error-msg" id="err-Longitude"></span>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="submit-btn" class="btn btn-primary">
+                <span class="btn-spinner" id="btn-spinner"></span>
+                <span class="btn-text">Estimate Property Value</span>
+              </button>
+              <button type="button" id="clear-btn" class="btn btn-secondary">Clear</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Right Column: Prediction Result Card -->
+        <section class="card result-card" id="result-card">
+          <div class="card-header">
+            <h2>Valuation Estimate</h2>
+            <span class="badge" id="result-model-badge">Waiting for input</span>
+          </div>
+
+          <div class="result-placeholder" id="result-placeholder">
+            <div class="placeholder-icon">🏡</div>
+            <p>Select a quick preset above or fill in the property attributes and click <strong>Estimate Property Value</strong> to generate a real-time ML estimate.</p>
+          </div>
+
+          <div class="result-content hidden" id="result-content">
+            <div class="valuation-display">
+              <span class="valuation-label">Estimated Market Value</span>
+              <div class="valuation-value" id="val-price">$0</div>
+              <div class="valuation-range" id="val-range">
+                <span>Range: </span>
+                <strong id="val-range-text">$0 - $0</strong>
+              </div>
+            </div>
+
+            <!-- Uncertainty Info Box -->
+            <div class="uncertainty-box">
+              <div class="uncertainty-title">
+                <span class="uncertainty-icon">🛡️</span>
+                <span>Defensible Uncertainty Estimation</span>
+              </div>
+              <p class="uncertainty-desc" id="val-uncertainty-desc">
+                Derived directly from the model's out-of-sample test RMSE residuals on unseen test data.
+              </p>
+            </div>
+
+            <!-- Engineered Features Card -->
+            <div class="metrics-block">
+              <h3>Engineered Feature Ratios</h3>
+              <div class="feature-pills">
+                <div class="pill">
+                  <span class="pill-label">Bedrooms / Room</span>
+                  <span class="pill-value" id="feat-bed-ratio">-</span>
+                </div>
+                <div class="pill">
+                  <span class="pill-label">Rooms / Household</span>
+                  <span class="pill-value" id="feat-rooms-ratio">-</span>
+                </div>
+                <div class="pill">
+                  <span class="pill-label">Occupancy / Household</span>
+                  <span class="pill-value" id="feat-occup-ratio">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Educational Disclaimer -->
+            <div class="disclaimer-note" id="val-disclaimer">
+              Educational prediction based on 1990 California Census housing dataset. Not an appraisal or real-time property valuation service.
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Analytics Section: Model Comparison & Feature Importances -->
+      <section class="analytics-section">
+        <div class="section-title-wrap">
+          <h2>Model Intelligence & Benchmark Analytics</h2>
+          <p>Real evaluation metrics logged during MLflow experiment runs and evaluated against held-out test data (random_state=42).</p>
+        </div>
+
+        <div class="analytics-grid">
+          <!-- Model Comparison Card -->
+          <div class="card analytics-card">
+            <div class="card-header">
+              <h3>Candidate Models Benchmark</h3>
+              <span class="badge badge-accent" id="benchmark-status">Loading metrics...</span>
+            </div>
+            <div class="table-responsive">
+              <table class="model-table" id="models-table">
+                <thead>
+                  <tr>
+                    <th>Model Architecture</th>
+                    <th>MAE</th>
+                    <th>RMSE</th>
+                    <th>R² Score</th>
+                    <th>Selection Status</th>
+                  </tr>
+                </thead>
+                <tbody id="models-table-body">
+                  <tr>
+                    <td colspan="5" class="table-loading">Fetching actual model metrics from backend...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Visual Metric Comparison Bar Chart -->
+            <div class="metric-visualizer">
+              <h4>Test Error Comparison (RMSE - Lower is Better)</h4>
+              <div class="bars-container" id="rmse-bars-container">
+                <!-- Dynamically generated bars -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature Importance Card -->
+          <div class="card analytics-card">
+            <div class="card-header">
+              <h3>Feature Importance Distribution</h3>
+              <span class="badge" id="importance-model-label">Best Model</span>
+            </div>
+            <p class="card-caption">Relative importance of housing and geographical attributes in determining property value.</p>
+            <div class="importance-list" id="importance-list">
+              <div class="table-loading">Loading feature importances...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Educational & Technical Architecture Section -->
+      <section class="educational-section card">
+        <div class="card-header">
+          <h2>About EstateIQ & Architecture</h2>
+          <span class="badge badge-outline">MLOps Foundation</span>
+        </div>
+        <div class="educational-grid">
+          <div class="edu-card">
+            <div class="edu-icon">📊</div>
+            <h3>California Housing Dataset</h3>
+            <p>
+              Derived from the 1990 U.S. Census, containing 20,640 block groups across California. Target variable represents median house value in $100,000 units. Note that in the original 1990 census, values above $500,000 were top-coded.
+            </p>
+          </div>
+          <div class="edu-card">
+            <div class="edu-icon">⚙️</div>
+            <h3>Feature Engineering</h3>
+            <p>
+              Computes domain ratios: <code>bedrooms_per_room</code> (ratio of bedrooms to total rooms), <code>rooms_per_household</code>, and <code>population_per_household</code>. Scaled via Scikit-learn <code>StandardScaler</code> within an isolated pipeline to prevent data leakage.
+            </p>
+          </div>
+          <div class="edu-card">
+            <div class="edu-icon">🔬</div>
+            <h3>Models & MLflow Tracking</h3>
+            <p>
+              Compares <code>HistGradientBoostingRegressor</code> and <code>RandomForestRegressor</code>. Experiments, hyperparameters, artifacts, and test metrics are logged to <code>mlruns/</code> under the <code>EstateIQ_House_Price_Experiment</code>.
+            </p>
+          </div>
+          <div class="edu-card">
+            <div class="edu-icon">🛡️</div>
+            <h3>Grounded Uncertainty</h3>
+            <p>
+              Instead of heuristic confidence intervals, EstateIQ uses empirical out-of-sample Root Mean Squared Error (RMSE) to produce defensible ±1 standard residual error prediction boundaries.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <p>© 2026 EstateIQ Platform. Educational Machine Learning Platform. Built with FastAPI, scikit-learn & uv.</p>
+        <div class="footer-links">
+          <a href="/docs" target="_blank">Swagger API Docs</a>
+          <a href="/health" target="_blank">System Health</a>
+          <a href="/models" target="_blank">Models JSON</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
+

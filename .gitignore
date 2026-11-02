@@ -1,0 +1,20 @@
+# Python virtual environment
+.venv/
+
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest cache
+.pytest_cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# MLflow tracking artifacts
+mlruns/
+
+# Large model artifacts
+models/random_forest.joblib

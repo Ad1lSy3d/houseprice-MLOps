@@ -1,0 +1,104 @@
+{
+  "experiment_name": "EstateIQ_House_Price_Experiment",
+  "best_model": "HistGradientBoostingRegressor",
+  "selection_metric": "lowest_test_rmse",
+  "models": {
+    "RandomForestRegressor": {
+      "metrics": {
+        "mae": 0.3286,
+        "rmse": 0.5057,
+        "r2_score": 0.8048,
+        "mae_usd": 32857.09,
+        "rmse_usd": 50569.71
+      },
+      "params": {
+        "n_estimators": 100,
+        "max_depth": 20,
+        "random_state": 42,
+        "n_jobs": -1
+      },
+      "feature_importances": {
+        "MedInc": 0.5243495183978102,
+        "HouseAge": 0.05268265095936381,
+        "AveRooms": 0.017250865576251596,
+        "AveBedrms": 0.024226659706674876,
+        "Population": 0.02752545017015773,
+        "AveOccup": 0.06896991978777926,
+        "Latitude": 0.08523289286910424,
+        "Longitude": 0.08512744952879409,
+        "rooms_per_household": 0.015810938380738944,
+        "bedrooms_per_room": 0.030524556589343298,
+        "population_per_household": 0.0682990980339819
+      },
+      "model_file": "models/random_forest.joblib"
+    },
+    "HistGradientBoostingRegressor": {
+      "metrics": {
+        "mae": 0.3008,
+        "rmse": 0.4529,
+        "r2_score": 0.8435,
+        "mae_usd": 30079.38,
+        "rmse_usd": 45290.8
+      },
+      "params": {
+        "max_iter": 150,
+        "learning_rate": 0.1,
+        "max_leaf_nodes": 31,
+        "random_state": 42
+      },
+      "feature_importances": {
+        "MedInc": 0.18889075319406468,
+        "HouseAge": 0.01766261443213794,
+        "AveRooms": 0.011967352546368255,
+        "AveBedrms": 0.0028107192919885446,
+        "Population": 0.0038057669768904864,
+        "AveOccup": 0.06845320676556438,
+        "Latitude": 0.3773588737173642,
+        "Longitude": 0.31685697854415573,
+        "rooms_per_household": 0.0,
+        "bedrooms_per_room": 0.012193734531465742,
+        "population_per_household": 0.0
+      },
+      "model_file": "models/gradient_boosting.joblib"
+    }
+  },
+  "best_model_metrics": {
+    "mae": 0.3008,
+    "rmse": 0.4529,
+    "r2_score": 0.8435,
+    "mae_usd": 30079.38,
+    "rmse_usd": 45290.8
+  },
+  "best_model_feature_importances": {
+    "MedInc": 0.18889075319406468,
+    "HouseAge": 0.01766261443213794,
+    "AveRooms": 0.011967352546368255,
+    "AveBedrms": 0.0028107192919885446,
+    "Population": 0.0038057669768904864,
+    "AveOccup": 0.06845320676556438,
+    "Latitude": 0.3773588737173642,
+    "Longitude": 0.31685697854415573,
+    "rooms_per_household": 0.0,
+    "bedrooms_per_room": 0.012193734531465742,
+    "population_per_household": 0.0
+  },
+  "dataset_split": {
+    "train_samples": 16512,
+    "test_samples": 4128,
+    "random_state": 42,
+    "test_size": 0.2
+  },
+  "features": [
+    "MedInc",
+    "HouseAge",
+    "AveRooms",
+    "AveBedrms",
+    "Population",
+    "AveOccup",
+    "Latitude",
+    "Longitude",
+    "rooms_per_household",
+    "bedrooms_per_room",
+    "population_per_household"
+  ]
+}
