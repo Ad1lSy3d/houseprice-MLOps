@@ -2,16 +2,38 @@
 EstateIQ – House Price Intelligence Platform
 Public Streamlit Web Frontend
 
-Connects to the EstateIQ FastAPI backend for real-time California housing
-price estimations, uncertainty intervals, and model benchmark analytics.
+Direct in-process Scikit-learn inference engine for Streamlit Community Cloud,
+with optional FastAPI connectivity for local Docker, Kubernetes and MLOps demonstrations.
 """
 
 from __future__ import annotations
 
+import logging
 import os
+import sys
+from pathlib import Path
 from typing import Any
+
+# Ensure project root is in sys.path for reliable module resolution
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import requests
 import streamlit as st
+from sklearn.pipeline import Pipeline
+
+from src.predict import (
+    RAW_FEATURE_NAMES,
+    InvalidFeatureError,
+    ModelNotFoundError,
+    load_evaluation_report,
+    load_model,
+    predict_price,
+)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
 # ==============================================================================
 # Page Configuration & Styling
@@ -78,6 +100,40 @@ st.markdown(
 )
 
 # ==============================================================================
+# Model Loading & Report Caching
+# ==============================================================================
+@st.cache_resource(show_spinner=False)
+def load_cached_model() -> tuple[Pipeline | None, str | None]:
+    """
+    Load and cache the trained Scikit-learn Pipeline from models/best_model.joblib.
+    Cached across all user interactions to eliminate repeated disk I/O.
+    """
+    try:
+        model_path = PROJECT_ROOT / "models" / "best_model.joblib"
+        model = load_model(model_path)
+        return model, None
+    except Exception as exc:
+        logger.error("Failed to load model: %s", exc)
+        return None, str(exc)
+
+
+@st.cache_data(show_spinner=False)
+def load_cached_report() -> dict[str, Any]:
+    """
+    Load and cache model evaluation benchmark report.
+    """
+    try:
+        report_path = PROJECT_ROOT / "reports" / "evaluation_results.json"
+        return load_evaluation_report(report_path)
+    except Exception as exc:
+        logger.error("Failed to load evaluation report: %s", exc)
+        return {
+            "best_model": "HistGradientBoostingRegressor",
+            "best_model_metrics": {"rmse": 0.4529, "mae": 0.3008, "r2_score": 0.8435},
+        }
+
+
+# ==============================================================================
 # Preset Profiles (Matching Existing Dashboard)
 # ==============================================================================
 PRESETS = {
@@ -124,7 +180,7 @@ PRESETS = {
 }
 
 # ==============================================================================
-# Helper Functions: Backend Connection
+# Helper Functions: Optional FastAPI Gateway
 # ==============================================================================
 def resolve_backend_url() -> str:
     """Resolve backend URL from env vars, secrets, or fallback."""
@@ -139,24 +195,24 @@ def resolve_backend_url() -> str:
 
 
 def check_backend_health(url: str) -> tuple[bool, str]:
-    """Test connectivity to FastAPI /health endpoint."""
+    """Test connectivity to optional FastAPI /health endpoint."""
     if not url:
         return False, "No URL configured"
     try:
-        resp = requests.get(f"{url}/health", timeout=3.0)
+        resp = requests.get(f"{url}/health", timeout=2.0)
         if resp.status_code == 200:
             data = resp.json()
             model_name = data.get("best_model_name", "Online")
             return True, f"Online ({model_name})"
         return False, f"HTTP {resp.status_code}"
-    except Exception as exc:
-        return False, f"Unreachable ({type(exc).__name__})"
+    except Exception:
+        return False, "Offline"
 
 
 def fetch_model_benchmarks(url: str) -> dict[str, Any] | None:
-    """Retrieve model evaluation results from /models."""
+    """Retrieve model evaluation results from /models endpoint."""
     try:
-        resp = requests.get(f"{url}/models", timeout=3.0)
+        resp = requests.get(f"{url}/models", timeout=2.0)
         if resp.status_code == 200:
             return resp.json()
     except Exception:
@@ -165,7 +221,7 @@ def fetch_model_benchmarks(url: str) -> dict[str, Any] | None:
 
 
 def call_predict_api(url: str, payload: dict[str, float]) -> tuple[dict[str, Any] | None, str | None]:
-    """Send prediction request to FastAPI backend."""
+    """Send prediction request to optional FastAPI backend."""
     try:
         resp = requests.post(
             f"{url}/predict",
@@ -181,7 +237,7 @@ def call_predict_api(url: str, payload: dict[str, float]) -> tuple[dict[str, Any
         else:
             return None, f"Server Error (HTTP {resp.status_code}): {resp.text}"
     except requests.exceptions.ConnectionError:
-        return None, f"Could not connect to backend at {url}. Ensure the API service is running and accessible."
+        return None, f"Could not connect to backend at {url}. Ensure FastAPI is running."
     except requests.exceptions.Timeout:
         return None, "Request timed out waiting for the prediction API."
     except Exception as exc:
@@ -189,27 +245,45 @@ def call_predict_api(url: str, payload: dict[str, float]) -> tuple[dict[str, Any
 
 
 # ==============================================================================
-# Sidebar: Settings & Presets
+# Sidebar: Model Status & Controls
 # ==============================================================================
 with st.sidebar:
     st.image("https://raw.githubusercontent.com/tandpfun/skill-icons/main/icons/Python-Dark.svg", width=42)
     st.title("EstateIQ Control Panel")
 
-    st.subheader("Backend Configuration")
-    default_url = resolve_backend_url()
-    backend_url = st.text_input(
-        "FastAPI Service URL",
-        value=default_url,
-        help="Configurable public URL of the deployed FastAPI backend (e.g. Render, AWS, Cloud Run).",
-    ).strip().rstrip("/")
+    st.subheader("Model Engine")
+    model, model_error = load_cached_model()
+    benchmarks_data = load_cached_report()
+    best_model_name = benchmarks_data.get("best_model", "HistGradientBoostingRegressor")
 
-    # Live health check pill
-    is_healthy, health_msg = check_backend_health(backend_url)
-    if is_healthy:
-        st.success(f"Backend Status: {health_msg}", icon="✅")
+    if model is not None:
+        st.success(f"Model Loaded: {best_model_name}", icon="✅")
+        st.caption("Direct In-Process Inference • Model cached in memory")
     else:
-        st.warning(f"Backend Status: {health_msg}", icon="⚠️")
-        st.caption("For local testing, start FastAPI with: `uv run uvicorn backend.main:app --port 8000`")
+        st.error("Model Unavailable", icon="🚨")
+        if model_error:
+            st.caption(f"Error: {model_error}")
+        st.caption("Ensure `models/best_model.joblib` exists in repository.")
+
+    with st.expander("FastAPI Gateway (Optional / Local MLOps)"):
+        st.caption("For local Kubernetes/Docker cluster demonstration:")
+        default_url = resolve_backend_url()
+        backend_url = st.text_input(
+            "Service URL",
+            value=default_url,
+            help="Optional FastAPI service URL (e.g. http://localhost:8000).",
+        ).strip().rstrip("/")
+        use_remote_api = st.checkbox(
+            "Route predictions via FastAPI",
+            value=False,
+            help="Check to route predictions through the external FastAPI REST API instead of direct in-memory model execution.",
+        )
+        if backend_url:
+            is_healthy, health_msg = check_backend_health(backend_url)
+            if is_healthy:
+                st.caption(f"API Gateway: {health_msg} ✅")
+            else:
+                st.caption(f"API Gateway: {health_msg} (Fallback to In-Process)")
 
     st.divider()
 
@@ -340,7 +414,7 @@ with col_form:
                 help="California longitude bounds: -125.0° to -114.0°.",
             )
 
-        submitted = st.form_submit_with_button = st.form_submit_button(
+        submitted = st.form_submit_button(
             "Estimate Property Value",
             type="primary",
             use_container_width=True,
@@ -361,8 +435,26 @@ with col_result:
     }
 
     if submitted or "last_prediction" in st.session_state:
-        with st.spinner("Querying EstateIQ inference engine..."):
-            pred_data, err_msg = call_predict_api(backend_url, features_payload)
+        pred_data: dict[str, Any] | None = None
+        err_msg: str | None = None
+
+        if use_remote_api:
+            with st.spinner("Querying EstateIQ FastAPI backend..."):
+                pred_data, err_msg = call_predict_api(backend_url, features_payload)
+        else:
+            with st.spinner("Calculating property valuation..."):
+                try:
+                    if model is None:
+                        err_msg = (
+                            "Model artifact not loaded. Please verify that "
+                            "`models/best_model.joblib` exists in the repository."
+                        )
+                    else:
+                        pred_data = predict_price(features_payload, model=model)
+                except InvalidFeatureError as val_err:
+                    err_msg = f"Input Validation Error: {str(val_err)}"
+                except Exception as exc:
+                    err_msg = f"Inference Error: {str(exc)}"
 
         if err_msg:
             st.error(err_msg, icon="🚨")
@@ -440,15 +532,20 @@ tab_models, tab_dataset, tab_arch = st.tabs(["📊 Model Benchmark Intelligence"
 
 with tab_models:
     st.subheader("Model Performance Benchmarks")
-    st.caption("Live metrics fetched directly from backend `/models` report:")
+    st.caption("Champion and candidate models evaluated on held-out test data (random_state=42):")
 
-    benchmarks = fetch_model_benchmarks(backend_url)
+    benchmarks = None
+    if use_remote_api:
+        benchmarks = fetch_model_benchmarks(backend_url)
+    if not benchmarks:
+        benchmarks = load_cached_report()
+
     if benchmarks and "models" in benchmarks:
-        models_data = benchmarks["models"]
+        models_dict = benchmarks["models"]
         best_name = benchmarks.get("best_model", "")
 
         table_rows = []
-        for name, info in models_data.items():
+        for name, info in models_dict.items():
             metrics = info.get("metrics", {})
             is_best = "★ Best Champion" if name == best_name else "Evaluated"
             table_rows.append({
@@ -467,7 +564,7 @@ with tab_models:
             st.subheader(f"Feature Importances ({best_name})")
             st.bar_chart(feat_imp)
     else:
-        st.info("Live benchmark data unavailable. Connect to an active FastAPI backend to explore dynamic model metrics.")
+        st.info("Model benchmark report is unavailable.")
 
 with tab_dataset:
     st.subheader("California Housing Census Dataset (1990)")
@@ -488,18 +585,16 @@ with tab_arch:
     st.markdown(
         """
         ```
-        [Streamlit Cloud] ──(HTTPS)──> [FastAPI REST API (Render / Docker)]
-                                              │
-                                              ├── [Scikit-learn Pipeline]
-                                              │       StandardScaler + HistGradientBoosting
-                                              │
-                                              └── [Prometheus & Grafana]
-                                                      ServiceMonitor scraping /metrics
+        [Streamlit Community Cloud]
+               │
+               ├── (Direct In-Process Inference) ──> [Scikit-learn Pipeline (Embedded)]
+               │                                          StandardScaler + HistGradientBoosting
+               │
+               └── (Optional REST API Mode) ──> [FastAPI Backend (Kubernetes / Docker)]
+                                                      └── [Prometheus & Grafana Monitoring]
         ```
-        - **Frontend**: Streamlit Community Cloud (interactive client).
-        - **Backend**: Containerized FastAPI listening on `0.0.0.0:8000`.
-        - **Experimentation**: MLflow tracking with reproducible parameter logging.
-        - **Monitoring**: Prometheus Operator + Grafana monitoring dashboard tracking latency, errors, and throughput.
+        - **Direct In-Process Mode**: Standalone cloud inference using `@st.cache_resource` for zero-latency responses without requiring a separate web service.
+        - **MLOps Cluster Mode**: Enterprise 3-replica Kubernetes deployment with Terraform and Prometheus/Grafana observability.
+        - **Experimentation**: MLflow tracking with persistent SQLite backend logging hyperparameters, metrics, and serialized artifacts.
         """
     )
-

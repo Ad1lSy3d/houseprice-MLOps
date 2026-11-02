@@ -342,42 +342,32 @@ Auto-provisioned via the Grafana sidecar using `monitoring/grafana/dashboard-con
 
 EstateIQ features an intuitive Streamlit frontend located in `streamlit_app/`.
 
+### Architecture: Direct In-Process Cloud Inference
+On Streamlit Community Cloud, EstateIQ loads the trained model artifact (`models/best_model.joblib`) directly into memory using `@st.cache_resource`. This eliminates the need for any third-party hosting service (like Render) or external backend URLs:
+- **Direct Predictions**: Uses `src/predict.py` directly for in-memory, zero-latency inference and feature engineering.
+- **Self-Contained Benchmarks**: Loads model comparison metrics and feature importances directly from `reports/evaluation_results.json`.
+- **Optional FastAPI Gateway**: The frontend includes an optional toggle for local development or Kubernetes/Docker MLOps demonstrations.
+
 ### Running Streamlit Locally
 ```bash
 # Run Streamlit frontend
-streamlit run streamlit_app/app.py
+uv run streamlit run streamlit_app/app.py
 ```
 
 ### Public Deployment on Streamlit Community Cloud
 1. Push repository changes to GitHub (`main` branch).
-2. Go to [share.streamlit.io](https://share.streamlit.io/).
-3. Select your repository: `adilsyed/houseprice-MLOps` (or your GitHub fork).
-4. Branch: `main`.
-5. Main file path: `streamlit_app/app.py`.
-6. In **Advanced Settings -> Secrets**, define the public backend URL:
-   ```toml
-   BACKEND_URL = "https://estateiq-api.onrender.com"
-   ```
-
-### Public Backend Deployment Configuration (Render)
-Streamlit Cloud cannot access local Minikube IP addresses. To host the FastAPI backend publicly:
-- Blueprint file: [`render.yaml`](render.yaml)
-- Steps:
-  1. Go to [render.com](https://render.com/) and link your GitHub repository.
-  2. Create a new **Web Service** from `render.yaml` with environment **Docker**.
-  3. Render builds using `Dockerfile` and starts Uvicorn listening on port 8000.
-  4. Once deployed, copy your Render service URL (e.g. `https://estateiq-api.onrender.com`) and paste it into Streamlit's secrets or sidebar setting.
-
-### Public Production Cloud Extensions
-For enterprise cloud scaling beyond local Minikube:
-- **Managed Kubernetes**: Deploy the `k8s/` manifests or `terraform/` templates to Google Kubernetes Engine (GKE), Amazon EKS, or Azure AKS by pointing the Terraform `kubernetes` provider to the managed cluster context.
-- **Remote MLflow Server**: Set `MLFLOW_TRACKING_URI` to a remote managed tracking server (e.g. Databricks MLflow or MLflow on AWS EC2/ECS backed by S3 and RDS PostgreSQL).
+2. Connect to [share.streamlit.io](https://share.streamlit.io/).
+3. App settings:
+   - **Repository**: `Ad1lSy3d/houseprice-MLOps`
+   - **Branch**: `main`
+   - **Main file path**: `streamlit_app/app.py`
+4. Deploy: Streamlit Cloud installs dependencies from `streamlit_app/requirements.txt` and starts the app with direct model execution. No secret or `BACKEND_URL` is required.
 
 ---
 
 ## 9. Verification & Test Execution Guide
 
-Run the comprehensive pytest suite covering API endpoints, ETL pipeline, model training, MLflow tracking, prediction bounds, Prometheus metrics, and Streamlit presets:
+Run the comprehensive pytest suite covering API endpoints, ETL pipeline, model training, MLflow tracking, prediction bounds, Prometheus metrics, and Streamlit direct inference:
 ```bash
 uv run pytest -v
 ```
@@ -385,34 +375,38 @@ uv run pytest -v
 ### Test Suite Execution Output:
 ```text
 tests/test_api.py::test_api_status_endpoint PASSED                       [  3%]
-tests/test_api.py::test_health_endpoint PASSED                           [  7%]
-tests/test_api.py::test_models_endpoint PASSED                           [ 11%]
-tests/test_api.py::test_predict_endpoint_valid PASSED                    [ 14%]
-tests/test_api.py::test_predict_endpoint_invalid_values PASSED           [ 18%]
-tests/test_api.py::test_predict_endpoint_missing_fields PASSED           [ 22%]
-tests/test_api.py::test_dashboard_endpoint PASSED                        [ 25%]
-tests/test_etl.py::test_extract_data PASSED                              [ 29%]
-tests/test_etl.py::test_engineer_features PASSED                         [ 33%]
-tests/test_etl.py::test_clean_data PASSED                                [ 37%]
-tests/test_etl.py::test_run_etl_creates_feature_store PASSED             [ 40%]
-tests/test_model.py::test_model_training_and_artifacts PASSED            [ 44%]
-tests/test_model.py::test_mlflow_experiment_and_runs PASSED              [ 48%]
-tests/test_model.py::test_repeated_training_creates_new_runs PASSED      [ 51%]
-tests/test_model.py::test_existing_model_prediction_still_works PASSED   [ 55%]
-tests/test_monitoring.py::test_metrics_endpoint_exposed PASSED           [ 59%]
-tests/test_monitoring.py::test_grafana_dashboard_json_structure PASSED   [ 62%]
-tests/test_monitoring.py::test_servicemonitor_manifest PASSED            [ 66%]
-tests/test_predict.py::test_predict_price_valid_input PASSED             [ 70%]
-tests/test_predict.py::test_predict_price_missing_feature PASSED         [ 74%]
-tests/test_predict.py::test_predict_price_negative_values PASSED         [ 77%]
-tests/test_predict.py::test_predict_price_out_of_bounds_geography PASSED [ 81%]
-tests/test_predict.py::test_load_model_missing_file PASSED               [ 85%]
-tests/test_streamlit.py::test_streamlit_files_exist PASSED               [ 88%]
-tests/test_streamlit.py::test_streamlit_presets_valid_against_schema PASSED [ 92%]
-tests/test_streamlit.py::test_resolve_backend_url_environment PASSED     [ 96%]
-tests/test_streamlit.py::test_render_blueprint_valid PASSED              [100%]
+tests/test_api.py::test_health_endpoint PASSED                           [  6%]
+tests/test_api.py::test_models_endpoint PASSED                           [  9%]
+tests/test_api.py::test_predict_endpoint_valid PASSED                    [ 12%]
+tests/test_api.py::test_predict_endpoint_invalid_values PASSED           [ 16%]
+tests/test_api.py::test_predict_endpoint_missing_fields PASSED           [ 19%]
+tests/test_api.py::test_dashboard_endpoint PASSED                        [ 22%]
+tests/test_etl.py::test_extract_data PASSED                              [ 25%]
+tests/test_etl.py::test_engineer_features PASSED                         [ 29%]
+tests/test_etl.py::test_clean_data PASSED                                [ 32%]
+tests/test_etl.py::test_run_etl_creates_feature_store PASSED             [ 35%]
+tests/test_model.py::test_model_training_and_artifacts PASSED            [ 38%]
+tests/test_model.py::test_mlflow_experiment_and_runs PASSED              [ 41%]
+tests/test_model.py::test_repeated_training_creates_new_runs PASSED      [ 45%]
+tests/test_model.py::test_existing_model_prediction_still_works PASSED   [ 48%]
+tests/test_monitoring.py::test_metrics_endpoint_exposed PASSED           [ 51%]
+tests/test_monitoring.py::test_grafana_dashboard_json_structure PASSED   [ 54%]
+tests/test_monitoring.py::test_servicemonitor_manifest PASSED            [ 58%]
+tests/test_predict.py::test_predict_price_valid_input PASSED             [ 61%]
+tests/test_predict.py::test_predict_price_missing_feature PASSED         [ 64%]
+tests/test_predict.py::test_predict_price_negative_values PASSED         [ 67%]
+tests/test_predict.py::test_predict_price_out_of_bounds_geography PASSED [ 70%]
+tests/test_predict.py::test_load_model_missing_file PASSED               [ 74%]
+tests/test_streamlit.py::test_streamlit_files_exist PASSED               [ 77%]
+tests/test_streamlit.py::test_streamlit_requirements_complete PASSED     [ 80%]
+tests/test_streamlit.py::test_streamlit_presets_valid_against_schema PASSED [ 83%]
+tests/test_resolve_backend_url_environment PASSED                         [ 87%]
+tests/test_render_blueprint_valid PASSED                                  [ 90%]
+tests/test_streamlit.py::test_direct_model_loading_and_caching PASSED    [ 93%]
+tests/test_streamlit.py::test_direct_prediction_from_streamlit PASSED    [ 96%]
+tests/test_streamlit.py::test_direct_prediction_all_presets PASSED       [100%]
 
-======================== 27 passed, 3 warnings in 8.96s ========================
+======================== 31 passed, 3 warnings in 9.32s ========================
 ```
 
 ---

@@ -143,6 +143,7 @@ def predict_price(
     features: dict[str, Any] | pd.DataFrame,
     model_path: Path | str | None = None,
     report_path: Path | str | None = None,
+    model: Pipeline | None = None,
 ) -> dict[str, Any]:
     """
     Estimate property value using the trained model.
@@ -151,6 +152,7 @@ def predict_price(
         features: Dictionary containing the 8 raw housing features, or a DataFrame.
         model_path: Optional path to joblib model file.
         report_path: Optional path to evaluation report.
+        model: Optional pre-loaded scikit-learn Pipeline instance.
 
     Returns:
         Dictionary containing prediction results, USD conversions, engineered features,
@@ -175,8 +177,9 @@ def predict_price(
     # 3. Ensure exact feature column alignment
     X = augmented_df[ALL_FEATURE_NAMES]
 
-    # 4. Load model
-    model = load_model(model_path)
+    # 4. Load model if not already provided
+    if model is None:
+        model = load_model(model_path)
 
     # 5. Predict (raw units: $100,000s)
     raw_preds = model.predict(X)
